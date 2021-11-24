@@ -1,0 +1,11 @@
+[package]
+description = "miniature subset of ml"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "miniml"
+version = "0.1.0"
+
+[dependencies]
+lazy_static = "*"
+pest = "*"
+pest_consume = "*"
