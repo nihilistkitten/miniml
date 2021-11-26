@@ -2,7 +2,7 @@
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
 use pest_consume::{match_nodes, Error, Parser};
 
-use crate::ast::Value::{Bool, Fn, Lookup, Num, Str, Unit};
+use crate::ast::Value::{Fn, Lookup, Unit};
 use crate::ast::{
     ArithOp::{Div, Expt, Minus, Mod, Plus, Times},
     Binop::{Appl, Arith, Logic, Order},
@@ -14,6 +14,7 @@ use crate::ast::{
     OrderOp::{Eq, Geq, Gt, Leq, Lt},
     Unop::{Neg, Not},
 };
+use crate::err::MlResult;
 use Expn::{Binop, If, Let, Pair, Unop, Value};
 
 #[derive(Parser)]
@@ -41,8 +42,10 @@ lazy_static::lazy_static! {
     );
 }
 
+pub type ParserError = Error<Rule>;
+
 /// A Result alias for Pest parsing errors.
-pub type ParserResult<T> = std::result::Result<T, Error<Rule>>;
+pub type ParserResult<T> = std::result::Result<T, ParserError>;
 
 type Node<'a> = pest_consume::Node<'a, Rule, ()>;
 
@@ -122,7 +125,9 @@ impl MiniMlParser {
     /// cond = { "if" ~ expn ~ "then" ~ expn ~ "else" ~ expn ~ "end" }
     fn cond(input: Node) -> ParserResult<Expn> {
         Ok(match_nodes!(input.into_children();
-            [expn(cond), expn(then_exp), expn(else_exp)] => If{ cond: box cond, then_exp: box then_exp, else_exp: box else_exp }
+            [expn(cond), expn(then_exp), expn(else_exp)] => If{
+                cond: box cond, then_exp: box then_exp, else_exp: box else_exp
+            }
         ))
     }
 
@@ -249,8 +254,13 @@ impl MiniMlParser {
 }
 
 /// Parse a &str to an expn.
-pub fn to_expn(s: &str) -> ParserResult<Expn> {
-    MiniMlParser::file(MiniMlParser::parse(Rule::file, s)?.single()?)
+///
+/// # Errors
+/// Errors on an invalid expression.
+pub fn to_expn(s: &str) -> MlResult<Expn> {
+    Ok(MiniMlParser::file(
+        MiniMlParser::parse(Rule::file, s)?.single()?,
+    )?)
 }
 
 #[cfg(test)]
@@ -260,7 +270,7 @@ mod tests {
     macro_rules! parser_tests { ($($name:ident: $input:expr, $expected:expr)*) => {
         $(
             #[test]
-            fn $name() -> ParserResult<()> {
+            fn $name() -> MlResult<()> {
                 assert_eq!(to_expn($input)?, $expected);
                 Ok(())
             }
@@ -268,7 +278,7 @@ mod tests {
     }}
 
     parser_tests!(
-        num: "3", Value(Num(3))
+        num: "3", 3.into()
         simple_fn: "fn x => 5", Value(Fn("x", box 5.into()))
         appl: "(fn y => x) 3", Binop{
             left: box Value(Fn("y", box Value(Lookup("x")))), op: Appl, right: box 3.into()
