@@ -87,11 +87,6 @@ impl MiniMlParser {
         ))
     }
 
-    /// Parse to a str.
-    fn str(input: Node) -> ParserResult<&str> {
-        Ok(input.as_str())
-    }
-
     /// Parse to a lookup.
     fn lookup(input: Node) -> ParserResult<crate::ast::Value> {
         Ok(match_nodes!(input.into_children();
@@ -114,7 +109,6 @@ impl MiniMlParser {
             [unit(_)] => Value(Unit),
             [num(n)] => n.into(),
             [bool(b)] => b.into(),
-            [str(s)] => s.into(),
             [lookup(x)] => x.into(),
             [arrow(f)] => f.into(),
         ))
@@ -132,13 +126,17 @@ impl MiniMlParser {
     }
 
     /// Parse a fun.
-    fn fun(input: Node) -> ParserResult<()> {
-        Ok(())
+    fn fun(input: Node) -> ParserResult<crate::ast::Let> {
+        Ok(match_nodes!(input.into_children();
+            [ident(name), ident(param)] => Fun(name, param)
+        ))
     }
 
     /// Parse a val.
-    fn val(input: Node) -> ParserResult<()> {
-        Ok(())
+    fn val(input: Node) -> ParserResult<crate::ast::Let> {
+        Ok(match_nodes!(input.into_children();
+            [ident(name)] => Val(name)
+        ))
     }
 
     /// Parse to a bind.
@@ -146,8 +144,8 @@ impl MiniMlParser {
     /// bind = { "let" ~ (fun | val) ~ ident ~ "=" ~ expn ~ "in" ~ expn ~ "end" }
     fn bind(input: Node) -> ParserResult<Expn> {
         Ok(match_nodes!(input.into_children();
-            [fun(_), ident(ident), expn(defn), expn(body)] => Let{ kind: Fun, ident, defn: box defn, body: box body },
-            [val(_), ident(ident), expn(defn), expn(body)] => Let{ kind: Val, ident, defn: box defn, body: box body },
+            [fun(kind), expn(defn), expn(body)] => Let { kind, defn: box defn, body: box body },
+            [val(kind), expn(defn), expn(body)] => Let { kind, defn: box defn, body: box body },
         ))
     }
 
@@ -194,13 +192,18 @@ impl MiniMlParser {
         Ok(())
     }
 
+    fn unops(input: Node) -> ParserResult<crate::ast::Unop> {
+        Ok(match_nodes!(input.into_children();
+            [not(_)] => Not,
+            [neg(_)] => Neg,
+        ))
+    }
+
     /// Parse to a unop.
     fn unop(input: Node) -> ParserResult<Expn> {
         Ok(match_nodes!(input.into_children();
-            [not(_), unop(on)] => Unop{op: Not, on: box on},
-            [neg(_), unop(on)] => Unop{op: Neg, on: box on},
-            [not(_), atom(on)] => Unop{op: Not, on: box on},
-            [neg(_), atom(on)] => Unop{op: Neg, on: box on}
+            [unops(op), unop(on)] => Unop{op, on: box on},
+            [unops(op), atom(on)] => Unop{op, on: box on},
         ))
     }
 
@@ -280,15 +283,15 @@ mod tests {
     parser_tests!(
         num: "3", 3.into()
         simple_fn: "fn x => 5", Value(Fn("x", box 5.into()))
-        appl: "(fn y => x) 3", Binop{
+        appl: "(fn y => x) 3", Binop {
             left: box Value(Fn("y", box Value(Lookup("x")))), op: Appl, right: box 3.into()
         }
-        precedence: "3 + 4 * 5", Binop{
-            left: box 3.into(), op: Plus.into(), right: box Binop{
+        precedence: "3 + 4 * 5", Binop {
+            left: box 3.into(), op: Plus.into(), right: box Binop {
                 left: box 4.into(), op: Times.into(), right: box 5.into()
             }
         }
-        assoc: "3 * 4 * 5", Binop{
+        assoc: "3 * 4 * 5", Binop {
             left: box Binop {
                 left: box 3.into(),
                 op: Times.into(),
@@ -296,6 +299,15 @@ mod tests {
             },
             op: Times.into(),
             right: box 5.into(),
+        }
+        not: "!true", Unop{
+            op: Not,
+            on: box true.into()
+        }
+        bind: "let val x = 5 in 3 end", Let {
+           kind: Val("x"),
+           defn: box 5.into(),
+           body: box 3.into()
         }
     );
 }

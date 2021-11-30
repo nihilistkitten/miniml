@@ -3,7 +3,7 @@ file = { SOI ~ expn ~ EOI }
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT    = _{ "(*" ~ ANY* ~ "*)" }
 
-keywords = @{ "if" | "then" | "else" | "end" | "andalso" | "orelse" | "let" | "fun" | "val" | "fn" }
+keywords = @{ "if" | "then" | "else" | "end" | "andalso" | "orelse" | "let" | "fun" | "val" |  "in" | "fn" }
 char = { ASCII_ALPHANUMERIC | "_" }
 reserved = @{ keywords ~ !char }
 ident = @{ !reserved ~ char+ }
@@ -29,16 +29,16 @@ not = { "!" }
 neg = { "~" }
 
 // let bindings
-fun = { "fun" }
-val = { "val" }
+fun = { "fun" ~ ident ~ ident }
+val = { "val" ~ ident }
 
 // booleans
 t = { "true" }
 f = { "false" }
 
-expn = { cond | bind | binop | unop | atom }
-cond = { "if" ~ expn ~ "then" ~ expn ~ "else" ~ expn ~ "end" }
-bind = { "let" ~ (fun | val) ~ ident ~ "=" ~ expn ~ "in" ~ expn ~ "end" }
+expn = { cond | bind | unop | binop | atom }
+cond = { "if" ~ expn ~ "then" ~ expn ~ "else" ~ expn }
+bind = { "let" ~ (fun | val) ~ "=" ~ expn ~ "in" ~ expn ~ "end" }
 
 binop = { atom ~ ( binops ~ atom )* }
 binops = _{ plus | minus | times | div | modulus | expt | and | or | lt | gt | leq | geq | eq | appl }
@@ -50,10 +50,9 @@ atom = { pair | paren | value }
 pair = { "(" ~ expn ~ "," ~ expn ~ ")" }
 paren = { "(" ~ expn ~ ")" }
 
-value = { unit | num | bool | str | lookup | arrow }
+value = { unit | num | bool | lookup | arrow }
 unit = { "()" }
 num = { ASCII_DIGIT+ }
 bool = { t | f }
-str = { "\"" ~ (^"\"")* ~ "\"" }
 lookup = { ident }
 arrow = { "fn" ~ ident ~ "=>" ~ expn } // fn is a reserved rust name

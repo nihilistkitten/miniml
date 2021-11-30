@@ -143,7 +143,6 @@ pub enum Value<'a> {
     Unit,
     Num(usize),
     Bool(bool),
-    Str(&'a str),
     Lookup(&'a str),
     Fn(&'a str, Box<Expn<'a>>),
 }
@@ -173,7 +172,7 @@ macro_rules! into_value { ($($variant:ident, $type:ty)*) => {
 into_value! {
     Num, usize
     Bool, bool
-    Str, &'a str
+    Lookup, &'a str
 }
 
 impl std::fmt::Display for Value<'_> {
@@ -182,7 +181,6 @@ impl std::fmt::Display for Value<'_> {
             Self::Unit => write!(f, "()"),
             Self::Num(i) => write!(f, "{}", i),
             Self::Bool(b) => write!(f, "{}", b),
-            Self::Str(s) => write!(f, "{}", s),
             Self::Lookup(x) => write!(f, "{}", x),
             Self::Fn(x, r) => write!(f, "fn {x} => {r}", x = x, r = r),
         }
@@ -191,16 +189,19 @@ impl std::fmt::Display for Value<'_> {
 
 /// The kinds of `let` expressions.
 #[derive(Debug, PartialEq)]
-pub enum Let {
-    Fun,
-    Val,
+pub enum Let<'a> {
+    /// A function, carrying an identifier and a named parameter.
+    Fun(&'a str, &'a str),
+
+    /// A value, carrying an identifier.
+    Val(&'a str),
 }
 
-impl std::fmt::Display for Let {
+impl std::fmt::Display for Let<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::Fun => "fun",
-            Self::Val => "val",
+            Self::Fun(ident, param) => format!("fun {} {}", ident, param),
+            Self::Val(ident) => format!("val {}", ident),
         };
         write!(f, "{}", message)
     }
@@ -215,8 +216,7 @@ pub enum Expn<'a> {
         else_exp: Box<Expn<'a>>,
     },
     Let {
-        kind: Let,
-        ident: &'a str,
+        kind: Let<'a>,
         defn: Box<Expn<'a>>,
         body: Box<Expn<'a>>,
     },
@@ -246,15 +246,9 @@ impl std::fmt::Display for Expn<'_> {
                 then_exp = then_exp,
                 else_exp = else_exp
             ),
-            Self::Let {
-                kind,
-                ident,
-                defn,
-                body,
-            } => format!(
-                "let {kind} {ident} = {defn} in {body} end",
+            Self::Let { kind, defn, body } => format!(
+                "let {kind} = {defn} in {body} end",
                 kind = kind,
-                ident = ident,
                 defn = defn,
                 body = body
             ),
